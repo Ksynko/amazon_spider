@@ -125,16 +125,13 @@ class AmazonSpider(Spider):
             )
 
     def parse(self, response):
+        if self._has_captcha(response):
+            result = self._handle_captcha(response, self.parse)
+        else:
+            result = self.parse_without_captcha(response)
+        return result
 
-        # call the appropriate method for the code. It'll only work if you set
-        #  `handle_httpstatus_list = [502, 503, 504]` in the spider
-        if hasattr(self, 'handle_httpstatus_list'):
-            for _code in self.handle_httpstatus_list:
-                if response.status == _code:
-                    _callable = getattr(self, 'parse_'+str(_code), None)
-                    if callable(_callable):
-                        yield _callable()
-
+    def parse_without_captcha(self, response):
         if self._search_page_error(response):
             remaining = response.meta['remaining']
             search_term = response.meta['search_term']
@@ -316,3 +313,51 @@ class AmazonSpider(Spider):
         body = response.body_as_unicode()
         return "Your search" in body \
             and  "did not match any products." in body
+
+    # Captcha handling functions.
+    def _has_captcha(self, response):
+        return '.images-amazon.com/captcha/' in response.body_as_unicode()
+
+    def _solve_captcha(self, response):
+        forms = response.xpath('//form')
+        assert len(forms) == 1, "More than one form found."
+
+        captcha_img = forms[0].xpath(
+            '//img[contains(@src, "/captcha/")]/@src').extract()[0]
+
+        self.log("Extracted capcha url: %s" % captcha_img, level=DEBUG)
+        return self._cbw.solve_captcha(captcha_img)
+
+    def _handle_captcha(self, response, callback):
+        captcha_solve_try = response.meta.get('captcha_solve_try', 0)
+        url = response.url
+        self.log("Captcha challenge for %s (try %d)."
+                 % (url, captcha_solve_try),
+                 level=INFO)
+
+        captcha = self._solve_captcha(response)
+
+        if captcha is None:
+            self.log(
+                "Failed to guess captcha for '%s' (try: %d)." % (
+                    url, captcha_solve_try),
+                level=ERROR
+            )
+            result = None
+        else:
+            self.log(
+                "On try %d, submitting captcha '%s' for '%s'." % (
+                    captcha_solve_try, captcha, url),
+                level=INFO
+            )
+            meta = response.meta.copy()
+            meta['captcha_solve_try'] = captcha_solve_try + 1
+            result = FormRequest.from_response(
+                response,
+                formname='',
+                formdata={'field-keywords': captcha},
+                callback=callback,
+                dont_filter=True,
+                meta=meta)
+
+        return result
