@@ -10,6 +10,16 @@ from scrapy.log import ERROR, WARNING, INFO
 from spiders.items import ProductItem
 from __init__ import cond_set, cond_set_value
 
+try:
+    from captcha_solver import CaptchaBreakerWrapper
+except Exception as e:
+    print '!!!!!!!!Captcha breaker is not available due to: %s' % e
+    class CaptchaBreakerWrapper(object):
+        @staticmethod
+        def solve_captcha(url):
+            msg("CaptchaBreaker in not available for url: %s" % url,
+                level=WARNING)
+            return None
 
 class AmazonSpider(Spider):
     name = 'amazon'
@@ -47,6 +57,7 @@ class AmazonSpider(Spider):
                  site_name=None,
                  product_url=None,
                  user_agent=None,
+                 captcha_retries='10',
                  *args, **kwargs):
         if user_agent is None or user_agent not in self.USER_AGENTS.keys():
             self.log("Not available user agent type or it wasn't set."
@@ -92,6 +103,9 @@ class AmazonSpider(Spider):
 
         self.log("Created for %s with %d search terms."
                  % (self.site_name, len(self.searchterms)), INFO)
+
+        self.captcha_retries = int(captcha_retries)
+        self._cbw = CaptchaBreakerWrapper()
 
     def make_requests_from_url(self, _):
         """This method does not apply to this type of spider so it is overriden
