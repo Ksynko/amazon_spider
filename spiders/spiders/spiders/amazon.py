@@ -291,7 +291,47 @@ class AmazonSpider(Spider):
 
             cond_set(product, 'asin', pr.xpath('@data-asin').extract())
 
+            if pr.xpath('.//i[contains(@class, "a-icon-prime")]'):
+                cond_set_value(product, 'prime', True)
+            else:
+                cond_set_value(product, 'prime', False)
 
+            cond_set(product, 'shipping_price', pr.xpath(
+                './/span[contains(@class,"s-price")]/'
+                'following::span[2]/text()').re('(\d+.?\d+) shipping'))
+
+            new = pr.xpath('.//a[contains(text(),"new")]/span/text()')
+
+            if new:
+                cond_set(product, 'new_price', new.extract())
+                cond_set(product, 'new_offers', new[1].re('\d+'))
+
+            used = pr.xpath('.//a[contains(text(),"used")]/span/text()')
+
+            if used:
+                cond_set(product, 'used_price', used.extract())
+                cond_set(product, 'used_offers', used[1].re('\d+'))
+
+            cond_set(product, 'rating', pr.xpath(
+                './/span[contains(@name,"'+product['asin']+'")]/span/a/i/span'
+            ).re('(\d+.?\d+)'))
+
+            cond_set(product, 'number_of_reviews', pr.xpath(
+                './/span[contains(@name,"'+product['asin']+'")]/'
+                'following::a[1]/text()').re('([\d+,?]+\d+)'))
+
+            cond_set(product, 'category', pr.xpath(
+                './/span[contains(@class,"a-text-bold")]/text()'
+            ).re('(.*):'))
+
+            number_of_items = pr.xpath(
+                './/span[contains(@class,"a-text-bold")]/../text()'
+            ).re('([\d+,?]+\d+)')
+
+            if number_of_items:
+                cond_set_value(product, 'number_of_items', number_of_items[0])
+
+            product['url'] = pr.xpath('.//h2/../@href')[0].extract()
 
             yield product
 

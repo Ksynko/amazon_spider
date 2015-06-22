@@ -20,6 +20,7 @@ class ProductItem(Item):
     price = Field()
     asin = Field()
     prime = Field()
+    shiping_price = Field()
     new_price = Field()
     new_offers = Field()
     used_price = Field()
