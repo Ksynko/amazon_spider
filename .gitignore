@@ -1,0 +1,26 @@
+*.txt
+*.out
+*.pyc
+*.jpg
+*.png
+*.dia
+*.sublime-project
+*.sublime-workspace
+
+# Hidden files
+!.htaccess
+.vagrant
+
+# PHP Storm, other java IDE's
+.idea/*
+
+
+#Virtualenv
+.env/*
+bin
+include
+lib
+man
+
+spiders/settings_local.py
+
