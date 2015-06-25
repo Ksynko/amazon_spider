@@ -3,9 +3,9 @@ import urllib
 import urlparse
 from itertools import islice
 
-from scrapy.http import Request
+from scrapy.http import Request, FormRequest
 from scrapy.spider import Spider
-from scrapy.log import ERROR, WARNING, INFO
+from scrapy.log import ERROR, WARNING, INFO, DEBUG
 
 from spiders.items import ProductItem
 from __init__ import cond_set, cond_set_value
@@ -53,6 +53,7 @@ class AmazonSpider(Spider):
     def __init__(self,
                  url_formatter=None,
                  quantity=None,
+                 page=None,
                  searchterms_str=None, searchterms_fn=None,
                  site_name=None,
                  product_url=None,
@@ -89,6 +90,14 @@ class AmazonSpider(Spider):
             self.quantity = sys.maxint
         else:
             self.quantity = int(quantity)
+
+        if page is None:
+            self.log("No page specified. Will retrieve all products.",
+                     INFO)
+            import sys
+            self.page = sys.maxint
+        else:
+            self.page = int(page)
 
         self.product_url = product_url
 
@@ -154,7 +163,6 @@ class AmazonSpider(Spider):
     def _get_products(self, response):
         remaining = response.meta['remaining']
         search_term = response.meta['search_term']
-        print search_term
         total_matches = response.meta.get('total_matches')
 
         prods = self._scrape_product_links(response)
@@ -168,53 +176,34 @@ class AmazonSpider(Spider):
                 if hasattr(self, 'is_nothing_found'):
                     if not self.is_nothing_found(response):
                         self.log(
-                            "Failed to parse total matches for %s" % response.url,ERROR)
-        print prods
+                            "Failed to parse total matches for %s" %
+                            response.url,ERROR)
+
         for i, (prod_item) in enumerate(islice(prods, 0, remaining)):
-            # Initialize the product as much as possible.
-            # prod_item['site'] = self.site_name
             prod_item['keyword'] = search_term
             prod_item['total_matches'] = total_matches
-            # prod_item['results_per_page'] = prods_per_page
-            # prod_item['scraped_results_per_page'] = scraped_results_per_page
-            # The ranking is the position in this page plus the number of
-            # products from other pages.
             prod_item['rank'] = (i + 1) + (self.quantity - remaining)
-            # if self.user_agent_key not in ["desktop", "default"]:
-            #     prod_item['is_mobile_agent'] = True
             yield prod_item
-            # elif isinstance(prod_url, Request):
-            #     cond_set_value(prod_item, 'url', prod_url.url)  # Tentative.
-            #     yield prod_url
-            # else:
-            #     # Another request is necessary to complete the product.
-            #     url = urlparse.urljoin(response.url, prod_url)
-            #     cond_set_value(prod_item, 'url', url)  # Tentative.
-            #     yield Request(
-            #         url,
-            #         callback=self.parse_product,
-            #         meta={'product': prod_item},
-            #     )
+
 
     def _get_next_products_page(self, response, prods_found):
+        page_number = int(response.meta.get('page_number', 1))
         link_page_attempt = response.meta.get('link_page_attempt', 1)
 
         result = None
         if prods_found is not None:
             # This was a real product listing page.
-            remaining = response.meta['remaining']
-            remaining -= prods_found
-            if remaining > 0:
+            if page_number < self.page:
+                remaining = response.meta['remaining']
+                remaining -= prods_found
                 next_page = self._scrape_next_results_page_link(response)
                 if next_page is None:
                     pass
-                elif isinstance(next_page, Request):
-                    next_page.meta['remaining'] = remaining
-                    result = next_page
                 else:
                     url = urlparse.urljoin(response.url, next_page)
                     new_meta = dict(response.meta)
                     new_meta['remaining'] = remaining
+                    new_meta['page_number'] = page_number + 1
                     result = Request(url, self.parse, meta=new_meta, priority=1)
         elif link_page_attempt > self.MAX_RETRIES:
             self.log(
@@ -271,6 +260,8 @@ class AmazonSpider(Spider):
         products = response.xpath('//li[@class="s-result-item"]')
 
         for pr in products:
+            if pr.xpath('.//h5[contains(@class, "s-sponsored-list-header")]'):
+                continue
             product = ProductItem()
 
             cond_set(product, 'title',
@@ -331,8 +322,8 @@ class AmazonSpider(Spider):
             if number_of_items:
                 cond_set_value(product, 'number_of_items', number_of_items[0])
 
-            product['url'] = pr.xpath('.//h2/../@href')[0].extract()
-
+            # product['url'] = pr.xpath('.//h2/../@href')[0].extract()
+            # cond_set(product, 'url', pr.xpath('.//h2/../@href').extract())
             yield product
 
     def _scrape_next_results_page_link(self, response):

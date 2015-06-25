@@ -43,10 +43,12 @@ class CaptchaBreaker:
     def clean_image(self, image, trim=False):
 
         gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-        thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
+        thresh = cv2.adaptiveThreshold(
+            gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,(3,3))
         eroded = cv2.erode(thresh,kernel,iterations = 1)
-        contours,hierarchy = cv2.findContours(eroded,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+        contours,hierarchy = cv2.findContours(eroded,cv2.RETR_EXTERNAL,
+                                              cv2.CHAIN_APPROX_NONE)
         [x,y,w,h] = cv2.boundingRect(contours[0])
         roi = thresh[y:y+h,x:x+w]
         if trim:
@@ -72,19 +74,23 @@ class CaptchaBreaker:
             bottom_pad = top_pad
 
         if height_pad > 0 and width_pad > 0:
-            dst = cv2.copyMakeBorder(image, top_pad, bottom_pad, left_pad, right_pad, cv2.BORDER_CONSTANT, value=0)
+            dst = cv2.copyMakeBorder(image, top_pad, bottom_pad, left_pad,
+                                     right_pad, cv2.BORDER_CONSTANT, value=0)
         else:    
             dst = cv2.resize(image,(self.HEIGHT,self.WIDTH))
-            sys.stderr.write("Could not add borders, shape " + str(height) + "," + str(width) + "\n")
+            sys.stderr.write("Could not add borders, shape " + str(height)
+                             + "," + str(width) + "\n")
         return dst
 
     def segment(self, im):
 
         gray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
-        thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
+        thresh = cv2.adaptiveThreshold(
+            gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,(3,3))
         thresh = cv2.erode(thresh,kernel,iterations = 1)
-        contours,hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+        contours,hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,
+                                              cv2.CHAIN_APPROX_NONE)
         rois = []
         im2 = np.copy(im)
         for cnt in contours:
@@ -118,7 +124,8 @@ class CaptchaBreaker:
 
         train_data = np.array(train_arrays)
 
-        images = train_data.reshape(-1,self.HEIGHT*self.WIDTH).astype(np.float32)
+        images = train_data.reshape(-1,
+                                    self.HEIGHT*self.WIDTH).astype(np.float32)
         labels = np.array(train_labels)
 
         return (images, labels)
@@ -127,7 +134,8 @@ class CaptchaBreaker:
         images = self.segment(cv2.imread(filename))
 
         for i in range(len(images)):
-            images[i] = cv2.adaptiveThreshold(images[i],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
+            images[i] = cv2.adaptiveThreshold(
+                images[i],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,1,11,2)
             images[i] = self.add_borders(images[i])
 
         image_arrays = []
@@ -151,7 +159,8 @@ class CaptchaBreaker:
 
     def train_from_file(self, train_data_file):
         train = np.load(train_data_file + "/train_captchas_data_images.npy")
-        train_labels = np.load(train_data_file + "/train_captchas_data_labels.npy")
+        train_labels = np.load(train_data_file +
+                               "/train_captchas_data_labels.npy")
         knn = cv2.KNearest()
         knn.train(train,train_labels)
 
@@ -188,9 +197,12 @@ class CaptchaBreaker:
 class CaptchaBreakerWrapper():
 
     CB = None
-    CAPTCHAS_DIR = "captchas"
-    SOLVED_CAPTCHAS_DIR = "solved_captchas"
-    TRAIN_DATA_PATH = "train_captchas_data"
+    # CAPTCHAS_DIR = "captchas"
+    # SOLVED_CAPTCHAS_DIR = "solved_captchas"
+    # TRAIN_DATA_PATH = "tra         in_captchas_data"
+    CAPTCHAS_DIR = "/tmp/captchas"
+    SOLVED_CAPTCHAS_DIR = "/tmp/solved_captchas"
+    TRAIN_DATA_PATH = "/tmp/train_captchas_data"
 
     def solve_captcha(self, image_URL, debug_info=True):
 
@@ -202,7 +214,8 @@ class CaptchaBreakerWrapper():
         m = re.match(".*/(Captcha_.*)",image_URL)
         if not m:
             if debug_info:
-                sys.stderr.write("Couldn't extract captcha image name from URL " + image_URL)
+                sys.stderr.write("Couldn't extract captcha image name "
+                                 "from URL " + image_URL)
             return None
 
         else:
@@ -216,15 +229,19 @@ class CaptchaBreakerWrapper():
                     if debug_info:
                         sys.stderr.write("Training captcha classifier...\n")
 
+                captcha_text = self.CB.test_captcha(self.CAPTCHAS_DIR + "/"
+                                                    + image_name)
 
-                captcha_text = self.CB.test_captcha(self.CAPTCHAS_DIR + "/" + image_name)
-
-                urllib.urlretrieve(image_URL, self.SOLVED_CAPTCHAS_DIR + "/" + captcha_text + ".jpg")
+                urllib.urlretrieve(image_URL, self.SOLVED_CAPTCHAS_DIR + "/"
+                                   + captcha_text + ".jpg")
                 if debug_info:
-                    sys.stderr.write("Solving captcha: " + image_URL + " with result " + captcha_text + "\n")
+                    sys.stderr.write("Solving captcha: " + image_URL +
+                                     " with result " + captcha_text + "\n")
 
             except Exception, e:
-                sys.stderr.write("Exception on solving captcha, for captcha " + self.CAPTCHAS_DIR + "/" + image_name + "\nException message: " + str(e) + "\n")
+                sys.stderr.write("Exception on solving captcha, for captcha "
+                                 + self.CAPTCHAS_DIR + "/" + image_name +
+                                 "\nException message: " + str(e) + "\n")
 
             return captcha_text
 
