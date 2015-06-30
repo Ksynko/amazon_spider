@@ -202,7 +202,8 @@ class CaptchaBreakerWrapper():
     # TRAIN_DATA_PATH = "tra         in_captchas_data"
     CAPTCHAS_DIR = "/tmp/captchas"
     SOLVED_CAPTCHAS_DIR = "/tmp/solved_captchas"
-    TRAIN_DATA_PATH = "/tmp/train_captchas_data"
+    directory = os.path.dirname(os.path.abspath(__file__))
+    TRAIN_DATA_PATH = os.path.join(directory, '..', 'train_captchas_data')
 
     def solve_captcha(self, image_URL, debug_info=True):
 
